@@ -1,0 +1,416 @@
+#!/bin/bash
+
+#
+# Essentials
+
+BASH_TEST__CWD="$PWD"; readonly BASH_TEST__CWD; export BASH_TEST__CWD
+BASH_TEST__DIR="$PWD/.bash-test"; readonly BASH_TEST__DIR
+BASH_TEST__SAMPLES_DIR="$BASH_TEST__DIR/samples"; readonly BASH_TEST__SAMPLES_DIR; export BASH_TEST__SAMPLES_DIR
+BASH_TEST__TEST_CASE_COUNT_FILE="$BASH_TEST__DIR/test-case-count"; readonly BASH_TEST__TEST_CASE_COUNT_FILE; export BASH_TEST__TEST_CASE_COUNT_FILE
+BASH_TEST__FAILED_TEST_CASE_COUNT_FILE="$BASH_TEST__DIR/failed-test-case-count"; readonly BASH_TEST__FAILED_TEST_CASE_COUNT_FILE; export BASH_TEST__FAILED_TEST_CASE_COUNT_FILE
+BASH_TEST__EMPTY_TEST_COUNT_FILE="$BASH_TEST__DIR/empty-test-count"; readonly BASH_TEST__EMPTY_TEST_COUNT_FILE; export BASH_TEST__EMPTY_TEST_COUNT_FILE
+BASH_TEST__COMMAND_OUTPUT_FILE="$BASH_TEST__DIR/command-output"; readonly BASH_TEST__COMMAND_OUTPUT_FILE; export BASH_TEST__COMMAND_OUTPUT_FILE
+BASH_TEST__COMMAND_OUTPUT_EXPECTED_FILE="$BASH_TEST__DIR/command-output-expected"; readonly BASH_TEST__COMMAND_OUTPUT_EXPECTED_FILE; export BASH_TEST__COMMAND_OUTPUT_EXPECTED_FILE
+BASH_TEST__CONTENTS_EXPECTED_FILE="$BASH_TEST__DIR/contents-expected"; readonly BASH_TEST__CONTENTS_EXPECTED_FILE; export BASH_TEST__CONTENTS_EXPECTED_FILE
+
+RUN_TEST_FILE_SCRIPT="$(dirname $0)/run-test-file"; readonly RUN_TEST_FILE_SCRIPT
+
+
+if [ -t 1 ] && [ $(tput colors) -gt 0 ]
+then
+	BASH_TEST__TS_NORMAL='\e[0m'; readonly BASH_TEST__TS_NORMAL; export BASH_TEST__TS_NORMAL
+	BASH_TEST__TS_BOLD='\e[1m'; readonly BASH_TEST__TS_BOLD; export BASH_TEST__TS_BOLD
+	BASH_TEST__TS_GREEN='\e[0;32m'; readonly BASH_TEST__TS_GREEN
+	BASH_TEST__TS_YELLOW='\e[0;33m'; readonly BASH_TEST__TS_YELLOW
+	BASH_TEST__TS_RED='\e[0;31m'; readonly BASH_TEST__TS_RED
+	BASH_TEST__TS_GREY='\e[0;37m'; readonly BASH_TEST__TS_GREY;
+
+	BASH_TEST__TS_ANNOTATION="${BASH_TEST__TS_GREY}"; readonly BASH_TEST__TS_ANNOTATION; export BASH_TEST__TS_ANNOTATION
+	BASH_TEST__TS_SUCCESS="${BASH_TEST__TS_GREEN}${BASH_TEST__TS_BOLD}"; readonly BASH_TEST__TS_SUCCESS
+	BASH_TEST__TS_WARNING="${BASH_TEST__TS_YELLOW}${BASH_TEST__TS_BOLD}"; readonly BASH_TEST__TS_WARNING; export BASH_TEST__TS_WARNING
+	BASH_TEST__TS_ERROR="${BASH_TEST__TS_RED}${BASH_TEST__TS_BOLD}"; readonly BASH_TEST__TS_ERROR; export BASH_TEST__TS_ERROR
+
+	BASH_TEST__DIFF_COLOR='always'
+else
+	BASH_TEST__DIFF_COLOR='never'
+fi
+
+readonly BASH_TEST__DIFF_COLOR; export BASH_TEST__DIFF_COLOR
+
+HELP_MESSAGE=\
+"${BASH_TEST__TS_BOLD}USAGE${BASH_TEST__TS_NORMAL}
+  ${BASH_TEST__TS_BOLD}bash-test${BASH_TEST__TS_NORMAL} --tests <dir-with-tests> [[--sample <script>]...] [options] -- <tests>...
+
+${BASH_TEST__TS_BOLD}OPTIONS${BASH_TEST__TS_NORMAL}
+  -s, --sample <script>    Create sample of a script.
+  -t, --tests <directory>  Directory with tests.
+  -f, --stop-on-failure    Stop on failure.
+  -v, --verbose            Verbose mode.
+  -h, --help               Show this message.
+  -- <test>...             Tests to run.
+"
+
+#
+# Exported
+
+bash-test-printf-error()
+{
+	printf "${BASH_TEST__TS_ERROR}bash-test error:${BASH_TEST__TS_NORMAL} " >&2
+	printf "$@" >&2
+	printf '\n' >&2
+}
+export -f bash-test-printf-error
+
+bash-test-print-running-test()
+{
+	printf "${BASH_TEST__TS_BOLD}Running %s${BASH_TEST__TS_NORMAL}\n" $1
+}
+export -f bash-test-print-running-test
+
+bash-test-print-test-case()
+{
+	printf '    %s\n' "$1"
+}
+export -f bash-test-print-test-case
+
+bash-test-print-no-tests-were-found()
+{
+	printf "    ${BASH_TEST__TS_WARNING}No tests were found${BASH_TEST__TS_NORMAL}\n"
+}
+export -f bash-test-print-no-tests-were-found
+
+bash-test-print-requisite-failed-message()
+{
+	local requisite=$1
+	local sandbox_path=$2
+	local expression=("${@:3}")
+
+	printf "        ${BASH_TEST__TS_ERROR}Failed to provide requisite${BASH_TEST__TS_NORMAL}\n" >&2
+	printf '        No file "%s" in "%s"\n' "$requisite" "$sandbox_path" >&2
+	printf '        Line %d: %s' "${BASH_LINENO[1]}" "${FUNCNAME[1]}"  >&2
+	printf ' "%s"' "${expression[@]}" >&2
+	printf '\n' >&2
+}
+export -f bash-test-print-requisite-failed-message
+
+bash-test-print-requirement-failed-message()
+{
+	local expression=("$@")
+
+	printf "        ${BASH_TEST__TS_ERROR}Test failed${BASH_TEST__TS_NORMAL}\n" >&2
+	printf '        Line %d: %s' "${BASH_LINENO[1]}" "${FUNCNAME[1]}"  >&2
+	printf ' "%s"' "${expression[@]}" >&2
+	printf '\n' >&2
+}
+export -f bash-test-print-requirement-failed-message
+
+bash-test-increment-test-case-count()
+{
+	local count=$(cat "$BASH_TEST__TEST_CASE_COUNT_FILE")
+	(( ++count ))
+	printf '%d\n' $count > "$BASH_TEST__TEST_CASE_COUNT_FILE"
+}
+export -f bash-test-increment-test-case-count
+
+bash-test-increment-failed-test-case-count()
+{
+	local count=$(cat "$BASH_TEST__FAILED_TEST_CASE_COUNT_FILE")
+	(( ++count ))
+	printf '%d\n' $count > "$BASH_TEST__FAILED_TEST_CASE_COUNT_FILE"
+}
+export -f bash-test-increment-failed-test-case-count
+
+bash-test-increment-empty-test-count()
+{
+	local count=$(cat "$BASH_TEST__EMPTY_TEST_COUNT_FILE")
+	(( ++count ))
+	printf '%d\n' $count > "$BASH_TEST__EMPTY_TEST_COUNT_FILE"
+}
+export -f bash-test-increment-empty-test-count
+
+#
+# Private
+
+print-help()
+{
+	printf "$HELP_MESSAGE"
+}
+
+printf-message()
+{
+	printf "$@"
+	printf '\n'
+}
+
+printf-error()
+{
+	printf "${BASH_TEST__TS_ERROR}bash-test error:${BASH_TEST__TS_NORMAL} " >&2
+	printf "$@" >&2
+	printf '\n' >&2
+}
+
+PARSE_AND_VALIDATE_ARGUMENTS__SUBJECTS=()
+PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS=''
+PARSE_AND_VALIDATE_ARGUMENTS__TESTS=()
+PARSE_AND_VALIDATE_ARGUMENTS__ERROR=''
+parse-and-validate-arguments()
+{
+	local arguments=("$@")
+	local index
+	for (( index = 0; index < ${#arguments[@]}; ++index ))
+	do
+		local argument="${arguments[$index]}"
+		case "$argument" in
+			#-s|--stop-on-failure)
+			#	;;
+
+			-s|--sample)
+				(( ++index ))
+				local file="${arguments[$index]}"
+				PARSE_AND_VALIDATE_ARGUMENTS__SUBJECTS+=("$file")
+				;;
+
+			-t|--tests)
+				(( ++index ))
+				local directory="${arguments[$index]}"
+				PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS="$PWD/$directory"
+				;;
+
+			-v|--verbose)
+				;;
+
+			-h|--help)
+				print-help
+				exit
+				;;
+
+			--)
+				(( ++index ))
+				break
+				;;
+
+			*)
+				PARSE_AND_VALIDATE_ARGUMENTS__ERROR="unknown option \"$argument\""
+				return 1
+				;;
+		esac
+	done
+
+	if [ -z "$PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS" ]
+	then
+		PARSE_AND_VALIDATE_ARGUMENTS__ERROR='no directory with tests was specified'
+		return 1
+	fi
+
+	for (( ; index < ${#arguments[@]}; ++index ))
+	do
+		PARSE_AND_VALIDATE_ARGUMENTS__TESTS+=("${arguments[$index]}")
+	done
+}
+
+find-sample-start()
+{
+	local descriptor=$1
+
+	while true
+	do
+		local line
+		read -u $descriptor -r line
+		if [[ $? != 0 ]]
+		then
+			return 1
+		fi
+
+		if [[ $line =~ ^[\ \	]*#[\ \	]*\[bash\-it:start\]$ ]]
+		then
+			break
+		fi
+	done
+}
+
+print-until-sample-end()
+{
+	local descriptor=$1
+
+	while true
+	do
+		local line
+		read -u $descriptor -r line
+		if [[ $? != 0 ]]
+		then
+			return 1
+		fi
+
+		if [[ $line =~ ^[\ \	]*#[\ \	]*\[bash\-it:end\]$ ]]
+		then
+			break
+		fi
+
+		printf '%s\n' "$line"
+	done
+}
+
+GATHER_SAMPLE__ERROR=''
+gather-sample()
+{
+	local subject=$1
+	local samples_dir=$2
+
+	local sample="$samples_dir/$subject"
+
+	rm -f "$sample"
+
+	if ! [ -r "$subject" ]
+	then
+		GATHER_SAMPLE__ERROR="failed to read \"$PWD/$subject\""
+		return 1
+	fi
+
+	exec 3< "$subject" || return 1
+
+	while true
+	do
+		find-sample-start 3
+		if [[ $? != 0 ]]
+		then
+			break
+		fi
+
+		print-until-sample-end 3 >> "$sample"
+		if [[ $? != 0 ]]
+		then
+			break
+		fi
+	done
+
+	exec 3<&-
+}
+
+GATHER_SAMPLES__ERROR=''
+gather-samples()
+{
+	mkdir -p "$BASH_TEST__SAMPLES_DIR"
+
+	local subject
+	for subject in "$@"
+	do
+		gather-sample "$subject" "$BASH_TEST__SAMPLES_DIR"
+		if [[ $? != 0 ]]
+		then
+			GATHER_SAMPLES__ERROR="$GATHER_SAMPLE__ERROR"
+			return 1
+		fi
+	done
+}
+
+FIND_TESTS__TEST_FILES=()
+find-tests()
+{
+	local test_dir=$1
+	local names=("${@:2}")
+
+	if [[ ${#names[@]} == 0 ]]
+	then
+		FIND_TESTS__TEST_FILES=($(find "$tests_dir" -type f -not -ipath "$tests_dir/sandboxes/*" | sort))
+	else
+		FIND_TESTS__TEST_FILES=()
+		local name
+		for name in "${names[@]}"
+		do
+			FIND_TESTS__TEST_FILES+=($(find "$tests_dir" -type f -not -ipath "$tests_dir/sandboxes/*" -ipath "*$name*"))
+		done
+
+		FIND_TESTS__TEST_FILES=($(printf '%s\n' "${FIND_TESTS__TEST_FILES[@]}" | sort | uniq))
+	fi
+
+	[[ ${#FIND_TESTS__TEST_FILES[@]} > 0 ]]
+}
+
+TOTAL_TEST_COUNT=0
+TOTAL_FAILED_TEST_COUNT=0
+
+RUN_TESTS_IN_DIRECTORY__ERROR=''
+run-tests-in-directory()
+{
+	local tests_dir=$1
+	local names=("${@:2}")
+
+	if [[ ${tests_dir: -1} == '/' ]]
+	then
+		tests_dir="${tests_dir:0:${#tests_dir}-1}"
+	fi
+
+	find-tests "$tests_dir" "${names[@]}"
+	if [[ $? != 0 ]]
+	then
+		RUN_TESTS_IN_DIRECTORY__ERROR="no tests were found in directory \"$PWD/$tests_dir\""
+		return 1
+	fi
+
+	local test_files=("${FIND_TESTS__TEST_FILES[@]}")
+	(( TOTAL_TEST_COUNT += ${#test_files[@]} ))
+
+	local test_file
+	for test_file in "${test_files[@]}"
+	do
+		"$RUN_TEST_FILE_SCRIPT" "$test_file"
+		if [[ $? != 0 ]]
+		then
+			(( ++TOTAL_FAILED_TEST_COUNT ))
+		fi
+
+		printf '\n'
+	done
+}
+
+#
+# Main
+
+parse-and-validate-arguments "$@"
+if [[ $? != 0 ]]
+then
+	printf-error '%s\n' "$PARSE_AND_VALIDATE_ARGUMENTS__ERROR"
+	print-help
+	exit 1
+fi
+
+BASH_TEST__TESTS_DIR="$PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS"; readonly BASH_TEST__TESTS_DIR; export BASH_TEST__TESTS_DIR
+BASH_TEST__SANDBOXES_DIR="${BASH_TEST__TESTS_DIR}sandboxes"; readonly BASH_TEST__SANDBOXES_DIR; export BASH_TEST__SANDBOXES_DIR
+
+gather-samples "${PARSE_AND_VALIDATE_ARGUMENTS__SUBJECTS[@]}"
+if [[ $? != 0 ]]
+then
+	printf-error '%s' "$GATHER_SAMPLES__ERROR"
+	exit 1
+fi
+
+mkdir -p "$BASH_TEST__DIR"
+printf '0\n' > "$BASH_TEST__TEST_CASE_COUNT_FILE"
+printf '0\n' > "$BASH_TEST__FAILED_TEST_CASE_COUNT_FILE"
+printf '0\n' > "$BASH_TEST__EMPTY_TEST_COUNT_FILE"
+
+run-tests-in-directory "$BASH_TEST__TESTS_DIR" "${PARSE_AND_VALIDATE_ARGUMENTS__TESTS[@]}"
+if [[ $? != 0 ]]
+then
+	printf-error '%s' "$RUN_TESTS_IN_DIRECTORY__ERROR"
+	exit 1
+fi
+
+total_test_case_count=$(cat "$BASH_TEST__TEST_CASE_COUNT_FILE")
+total_failed_test_case_count=$(cat "$BASH_TEST__FAILED_TEST_CASE_COUNT_FILE")
+total_empty_test_count=$(cat "$BASH_TEST__EMPTY_TEST_COUNT_FILE")
+
+printf 'Total: %d tests, %d cases' $TOTAL_TEST_COUNT $total_test_case_count
+if [[ $total_empty_test_count > 0 ]]
+then
+	printf ", ${BASH_TEST__TS_WARNING}%d empty tests${BASH_TEST__TS_NORMAL}" $total_empty_test_count
+fi
+printf '\n'
+
+if [[ $TOTAL_FAILED_TEST_COUNT > 0 ]]
+then
+	printf "${BASH_TEST__TS_ERROR}Failed: %d tests, %d cases${BASH_TEST__TS_NORMAL}\n" $TOTAL_FAILED_TEST_COUNT $total_failed_test_case_count
+else
+	printf-message "${BASH_TEST__TS_SUCCESS}All tests passed${BASH_TEST__SC_END}"
+fi
+

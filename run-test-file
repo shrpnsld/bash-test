@@ -1,0 +1,364 @@
+#!/bin/bash
+
+#
+# Exported
+
+SANDBOX_ROOT=''; export SANDBOX_ROOT
+
+SAMPLE()
+{
+	printf "$BASH_TEST__SAMPLES_DIR/$1\n"
+}
+
+USE-SANDBOX()
+{
+	local name=$1
+
+	if [ -z "$name" ]
+	then
+		local file_name=$(basename "$BASH_TEST__CURRENT_TEST_FILE")
+		name="${file_name%%.*}"
+	fi
+
+	local sandbox_dir="$BASH_TEST__SANDBOXES_DIR/$name"
+	if ! [ -d "$sandbox_dir" ]
+	then
+		bash-test-printf-error 'cannot find sandbox for test "%s"' "$BASH_TEST__CURRENT_TEST_FILE"
+		exit 1
+	fi
+
+	local sandbox_environment="$sandbox_dir/environment"
+	if [ -d "$sandbox_environment" ]
+	then
+		PATH=$sandbox_environment:$PATH
+	fi
+
+	SANDBOX_REQUISITES="$sandbox_dir/requisites"
+
+	SANDBOX_ROOT="$sandbox_dir/root"
+	mkdir -p "$SANDBOX_ROOT" &> /dev/null
+	if [[ $? != 0 ]]
+	then
+		bash-test-printf-error 'failed to create "root" directory for sandbox at "%s"' "$SANDBOX_ROOT"
+		exit 1
+	fi
+}
+
+SECTION()
+{
+	if [ -n "$BASH_TEST__CURRENT_TEST_CASE" ]
+	then
+		printf '\n'
+	fi
+
+	printf "    $BASH_TEST__TS_ANNOTATION--"
+	printf ' %s' "$1"
+	printf " --$BASH_TEST__TS_NORMAL\n"
+}
+
+TEST-CASE()
+{
+	BASH_TEST__CURRENT_TEST_CASE=$1
+	BASH_TEST__FILE_HAS_TESTS=true
+
+	bash-test-clean-sandbox-root
+	BASH_TEST__REQUISITES=()
+
+	bash-test-increment-test-case-count
+
+	if $BASH_TEST__TEST_CASE_ALREADY_FAILED
+	then
+		printf '\n'
+	fi
+
+	BASH_TEST__TEST_CASE_ALREADY_FAILED=false
+
+	bash-test-print-test-case "$BASH_TEST__CURRENT_TEST_CASE"
+
+	cd "$SANDBOX_ROOT" &> /dev/null
+	if [[ $? != 0 ]]
+	then
+		bash-test-printf-error 'failed to set current working directory to "%s"' "$SANDBOX_ROOT"
+		exit 1
+	fi
+}
+
+USE-REQUISITES()
+{
+	BASH_TEST__REQUISITES+=("$@")
+
+	local requisite
+	for requisite in "${BASH_TEST__REQUISITES[@]}"
+	do
+		local requisite_path="$SANDBOX_REQUISITES/$requisite"
+		cp -R -f "$requisite_path" "$SANDBOX_ROOT" &> /dev/null
+		if [ $? != 0 ]
+		then
+			bash-test-print-requisite-failed-message "$requisite" "$SANDBOX_ROOT" "$@"
+			exit 1
+		fi
+	done
+}
+
+LINK-REQUISITES()
+{
+	BASH_TEST__REQUISITES+=("$@")
+
+	local requisite
+	for requisite in "${BASH_TEST__REQUISITES[@]}"
+	do
+		local requisite_path="$SANDBOX_REQUISITES/$requisite"
+		ln -s -f "$requisite_path" "$SANDBOX_ROOT" &> /dev/null
+		if [ $? != 0 ]
+		then
+			bash-test-print-requisite-failed-message "$requisite" "$SANDBOX_ROOT" "$@"
+			exit 1
+		fi
+	done
+}
+
+CHECK()
+{
+	local expected_result
+	local expression
+	if [[ $1 == '!' ]]
+	then
+		expected_result=1
+		expression=("${@:2}")
+	else
+		expected_result=0
+		expression=("$@")
+	fi
+
+	"${expression[@]}"
+	if [[ $? != $expected_result ]]
+	then
+		if ! $BASH_TEST__TEST_CASE_ALREADY_FAILED
+		then
+			bash-test-increment-failed-test-case-count
+			BASH_TEST__TEST_CASE_ALREADY_FAILED=true
+		else
+			printf '\n' >&2
+		fi
+
+		BASH_TEST__SOME_TESTS_FAILED=true
+		bash-test-print-requirement-failed-message "$@"
+	fi
+}
+
+CHECK-COMMAND()
+{
+	"$@" > "$BASH_TEST__COMMAND_OUTPUT_FILE" 2>&1
+	if [[ $? != 0 ]]
+	then
+		if ! $BASH_TEST__TEST_CASE_ALREADY_FAILED
+		then
+			bash-test-increment-failed-test-case-count
+			BASH_TEST__TEST_CASE_ALREADY_FAILED=true
+		else
+			printf '\n' >&2
+		fi
+
+		BASH_TEST__SOME_TESTS_FAILED=true
+		bash-test-print-requirement-failed-message "$@"
+		printf '        Command output:\n' >&2
+		local line
+		while read -r line
+		do
+			printf '        > %s\n' "$line" >&2
+		done < "$BASH_TEST__COMMAND_OUTPUT_FILE"
+		return
+	fi
+}
+
+CHECK-OUTPUT()
+{
+	local how=$1
+	local expected_output=$2
+	local command_keyword=$3
+	local command=("${@:4}")
+
+	if [[ $how != 'WITH-FILE' && $how != 'WITH-FILE-EXPANDING-VARS' && $how != 'WITH-STRING' ]]
+	then
+		bash-test-printf-error 'first argument must denote how expected output is specified by "WITH-FILE", "WITH-FILE-EXPANDING-VARS" or "WITH-STRING" keywords'
+		exit 1
+	fi
+
+	if [[ $command_keyword != 'COMMAND' ]]
+	then
+		bash-test-printf-error 'third argument must be "COMMAND" keyword'
+		exit 1
+	fi
+
+	"${command[@]}" > "$BASH_TEST__COMMAND_OUTPUT_FILE" 2>&1
+	if [[ $? != 0 ]]
+	then
+		if ! $BASH_TEST__TEST_CASE_ALREADY_FAILED
+		then
+			bash-test-increment-failed-test-case-count
+			BASH_TEST__TEST_CASE_ALREADY_FAILED=true
+		else
+			printf '\n' >&2
+		fi
+
+		BASH_TEST__SOME_TESTS_FAILED=true
+		bash-test-print-requirement-failed-message "$@"
+		printf '        Command output:\n' >&2
+		local line
+		while read -r line
+		do
+			printf '        > %s\n' "$line" >&2
+		done < "$BASH_TEST__COMMAND_OUTPUT_FILE"
+		return
+	fi
+
+	local expected_output_file
+	case "$how" in
+		'WITH-FILE')
+			expected_output_file="$SANDBOX_REQUISITES/$expected_output"
+			;;
+
+		'WITH-FILE-EXPANDING-VARS')
+			expected_output_file="$BASH_TEST__COMMAND_OUTPUT_EXPECTED_FILE"
+			cat "$SANDBOX_REQUISITES/$expected_output" | envsubst > "$expected_output_file"
+			;;
+
+		'WITH-STRING')
+			expected_output_file="$BASH_TEST__COMMAND_OUTPUT_EXPECTED_FILE"
+			printf '%s' "$expected_output" > "$expected_output_file"
+			;;
+	esac
+
+	# with this order of input files, diff shows what CHECK-COMMAND-OUTPUT expects to see, not what it sees.
+	# for example, if diff shows line missing, that means, that <file> should not have that line in order for test to pass
+	local diff_output
+	IFS=$'\n'
+	diff_output=($(diff --unified=3 --color="$BASH_TEST__DIFF_COLOR" "$expected_output_file" "$BASH_TEST__COMMAND_OUTPUT_FILE" 2>&1))
+	local retval=$?
+	unset IFS
+
+	if [[ $retval != 0 ]]
+	then
+		if ! $BASH_TEST__TEST_CASE_ALREADY_FAILED
+		then
+			bash-test-increment-failed-test-case-count
+			BASH_TEST__TEST_CASE_ALREADY_FAILED=true
+		else
+			printf '\n' >&2
+		fi
+
+		BASH_TEST__SOME_TESTS_FAILED=true
+		bash-test-print-requirement-failed-message "$@"
+		printf '        %s\n' "${diff_output[@]}" >&2
+		printf "$BASH_TEST__TS_NORMAL" # diff does not reset colors for some reason
+		return
+	fi
+}
+
+CHECK-CONTENTS()
+{
+	local of_file_keyword=$1
+	local file=$2
+	local how=$3
+	local expected_contents=$4
+
+	if [[ $file_keyword == 'OF-FILE' ]]
+	then
+		bash-test-printf-error 'first argument must be "OF-FILE" keyword'
+		exit 1
+	fi
+
+	if [[ $how != 'WITH-FILE' && $how != 'WITH-FILE-EXPANDING-VARS' && $how != 'WITH-STRING' ]]
+	then
+		bash-test-printf-error 'third argument must denote how expected output is specified by "WITH-FILE", "WITH-FILE-EXPANDING-VARS" or "WITH-STRING" keyword'
+		exit 1
+	fi
+
+	local expected_contents_file
+	case "$how" in
+		'WITH-FILE')
+			expected_contents_file="$SANDBOX_REQUISITES/$expected_contents"
+			;;
+
+		'WITH-FILE-EXPANDING-VARS')
+			expected_contents_file="$BASH_TEST__CONTENTS_EXPECTED_FILE"
+			cat "$SANDBOX_REQUISITES/$expected_output" | envsubst > "$expected_contents_file"
+			;;
+
+		'WITH-STRING')
+			expected_file_contents="$BASH_TEST__CONTENTS_EXPECTED_FILE"
+			printf '%s' "$expected_output" > "$expected_contents_file"
+			;;
+	esac
+
+	local diff_output
+	IFS=$'\n'
+	# with this order of input files, diff shows what CHECK-FILE-CONTENTS expects to see, not what it sees.
+	# for example, if diff shows line missing, that means, that <file> should not have that line in order for test to pass
+	diff_output=($(diff --unified=3 --color="$BASH_TEST__DIFF_COLOR" "$expected_contents_file" "$file" 2>&1))
+	local retval=$?
+	unset IFS
+
+	if [[ $retval != 0 ]]
+	then
+		if ! $BASH_TEST__TEST_CASE_ALREADY_FAILED
+		then
+			bash-test-increment-failed-test-case-count
+			BASH_TEST__TEST_CASE_ALREADY_FAILED=true
+		else
+			printf '\n' >&2
+		fi
+
+		BASH_TEST__SOME_TESTS_FAILED=true
+		bash-test-print-requirement-failed-message "$@"
+		printf '        %s\n' "${diff_output[@]}" >&2
+		printf "$BASH_TEST__TS_NORMAL" # diff does not reset colors for some reason
+		return
+	fi
+}
+
+#
+# Private
+
+BASH_TEST__REQUISITES=()
+BASH_TEST__CURRENT_TEST_CASE=''
+BASH_TEST__FILE_HAS_TESTS=false
+BASH_TEST__CURRENT_TEST_FILE=''
+BASH_TEST__SOME_TESTS_FAILED=false
+BASH_TEST__TEST_CASE_ALREADY_FAILED=false
+
+bash-test-clean-sandbox-root()
+{
+	if [[ -d $SANDBOX_ROOT ]]
+	then
+		rm -rf "$SANDBOX_ROOT"/*
+	fi
+}
+
+bash-test-clean-temp-files()
+{
+	rm -f \
+		"$BASH_TEST__COMMAND_OUTPUT_FILE" \
+		"$BASH_TEST__COMMAND_OUTPUT_EXPECTED_FILE" \
+		"$BASH_TEST__CONTENTS_EXPECTED_FILE"
+}
+
+BASH_TEST__CURRENT_TEST_FILE=".${1#$PWD}"
+
+bash-test-print-running-test "$BASH_TEST__CURRENT_TEST_FILE"
+source "$BASH_TEST__CURRENT_TEST_FILE"
+bash-test-clean-sandbox-root
+bash-test-clean-temp-files
+cd "$BASH_TEST__CWD"
+
+if ! $BASH_TEST__FILE_HAS_TESTS
+then
+	bash-test-print-no-tests-were-found
+	bash-test-increment-empty-test-count
+fi
+
+if $BASH_TEST__SOME_TESTS_FAILED
+then
+	exit 1
+fi
+
