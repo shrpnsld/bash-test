@@ -422,6 +422,7 @@ printf '\n'
 if [[ $TOTAL_FAILED_TEST_COUNT > 0 ]]
 then
 	printf "${BASH_TEST__TS_ERROR}Failed: %d tests, %d cases${BASH_TEST__TS_NORMAL}\n" $TOTAL_FAILED_TEST_COUNT $total_failed_test_case_count
+	exit 1
 else
 	printf-message "${BASH_TEST__TS_SUCCESS}All tests passed${BASH_TEST__SC_END}"
 fi
