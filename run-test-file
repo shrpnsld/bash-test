@@ -14,7 +14,7 @@ USE-SANDBOX()
 {
 	local name=$1
 
-	if [ -z "$name" ]
+	if [[ -z "$name" ]]
 	then
 		local file_name=$(basename "$BASH_TEST__CURRENT_TEST_FILE")
 		name="${file_name%%.*}"
@@ -28,7 +28,7 @@ USE-SANDBOX()
 	fi
 
 	local sandbox_environment="$sandbox_dir/environment"
-	if [ -d "$sandbox_environment" ]
+	if [[ -d "$sandbox_environment" ]]
 	then
 		PATH=$sandbox_environment:$PATH
 	fi
@@ -46,7 +46,7 @@ USE-SANDBOX()
 
 SECTION()
 {
-	if [ -n "$BASH_TEST__CURRENT_TEST_CASE" ]
+	if [[ -n "$BASH_TEST__CURRENT_TEST_CASE" ]]
 	then
 		printf '\n'
 	fi
@@ -92,7 +92,7 @@ USE-REQUISITES()
 	do
 		local requisite_path="$SANDBOX_REQUISITES/$requisite"
 		cp -R -f "$requisite_path" "$SANDBOX_ROOT" &> /dev/null
-		if [ $? != 0 ]
+		if [[ $? != 0 ]]
 		then
 			bash-test-print-requisite-failed-message "$requisite" "$SANDBOX_ROOT" "$@"
 			exit 1
@@ -109,7 +109,7 @@ LINK-REQUISITES()
 	do
 		local requisite_path="$SANDBOX_REQUISITES/$requisite"
 		ln -s -f "$requisite_path" "$SANDBOX_ROOT" &> /dev/null
-		if [ $? != 0 ]
+		if [[ $? != 0 ]]
 		then
 			bash-test-print-requisite-failed-message "$requisite" "$SANDBOX_ROOT" "$@"
 			exit 1

@@ -16,7 +16,7 @@ BASH_TEST__CONTENTS_EXPECTED_FILE="$BASH_TEST__DIR/contents-expected"; readonly 
 RUN_TEST_FILE_SCRIPT="$(dirname $0)/run-test-file"; readonly RUN_TEST_FILE_SCRIPT
 
 
-if [ -t 1 ] && [ $(tput colors) -gt 0 ]
+if [[ -t 1 ]] && (( $(tput colors) > 0 ))
 then
 	BASH_TEST__TS_NORMAL='\e[0m'; readonly BASH_TEST__TS_NORMAL; export BASH_TEST__TS_NORMAL
 	BASH_TEST__TS_BOLD='\e[1m'; readonly BASH_TEST__TS_BOLD; export BASH_TEST__TS_BOLD
@@ -172,7 +172,7 @@ parse-and-validate-arguments()
 
 			-t|--tests)
 				(( ++index ))
-				local directory="${arguments[$index]}"
+				local directory=$(ensure-trailing-slash "${arguments[$index]}")
 				PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS="$PWD/$directory"
 				;;
 
@@ -196,7 +196,7 @@ parse-and-validate-arguments()
 		esac
 	done
 
-	if [ -z "$PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS" ]
+	if [[ -z "$PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS" ]]
 	then
 		PARSE_AND_VALIDATE_ARGUMENTS__ERROR='no directory with tests was specified'
 		return 1
