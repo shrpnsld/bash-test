@@ -149,6 +149,18 @@ printf-error()
 	printf '\n' >&2
 }
 
+ensure-trailing-slash()
+{
+	local path=$1
+
+	if [[ ${path: -1} != '/' ]]
+	then
+		path="$path/"
+	fi
+
+	printf '%s' "$path"
+}
+
 PARSE_AND_VALIDATE_ARGUMENTS__SUBJECTS=()
 PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS=''
 PARSE_AND_VALIDATE_ARGUMENTS__TESTS=()
