@@ -355,7 +355,7 @@ run-tests-in-directory()
 	find-tests "$tests_dir" "${names[@]}"
 	if [[ $? != 0 ]]
 	then
-		RUN_TESTS_IN_DIRECTORY__ERROR="no tests were found in directory \"$PWD/$tests_dir\""
+		RUN_TESTS_IN_DIRECTORY__ERROR="no tests were found in directory \"$tests_dir\""
 		return 1
 	fi
 
