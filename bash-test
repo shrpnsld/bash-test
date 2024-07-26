@@ -208,7 +208,7 @@ parse-and-validate-arguments()
 		esac
 	done
 
-	if [[ -z "$PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS" ]]
+	if [[ -z $PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS ]]
 	then
 		PARSE_AND_VALIDATE_ARGUMENTS__ERROR='no directory with tests was specified'
 		return 1
@@ -272,7 +272,7 @@ gather-sample()
 
 	rm -f "$sample"
 
-	if ! [ -r "$subject" ]
+	if ! [[ -r $subject ]]
 	then
 		GATHER_SAMPLE__ERROR="failed to read \"$PWD/$subject\""
 		return 1
