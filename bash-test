@@ -164,6 +164,7 @@ ensure-trailing-slash()
 PARSE_AND_VALIDATE_ARGUMENTS__SUBJECTS=()
 PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS=''
 PARSE_AND_VALIDATE_ARGUMENTS__TESTS=()
+PARSE_AND_VALIDATE_ARGUMENTS__STOP_ON_FAILURE=false
 PARSE_AND_VALIDATE_ARGUMENTS__ERROR=''
 parse-and-validate-arguments()
 {
@@ -173,9 +174,6 @@ parse-and-validate-arguments()
 	do
 		local argument="${arguments[$index]}"
 		case "$argument" in
-			#-s|--stop-on-failure)
-			#	;;
-
 			-s|--sample)
 				(( ++index ))
 				local file="${arguments[$index]}"
@@ -186,6 +184,10 @@ parse-and-validate-arguments()
 				(( ++index ))
 				local directory=$(ensure-trailing-slash "${arguments[$index]}")
 				PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS="$PWD/$directory"
+				;;
+
+			-f|--stop-on-failure)
+				PARSE_AND_VALIDATE_ARGUMENTS__STOP_ON_FAILURE=true
 				;;
 
 			-v|--verbose)
@@ -341,8 +343,10 @@ find-tests()
 TOTAL_TEST_COUNT=0
 TOTAL_FAILED_TEST_COUNT=0
 
-RUN_TESTS_IN_DIRECTORY__ERROR=''
-run-tests-in-directory()
+RUN_TESTS__ERROR=''
+RUN_TESTS_CODE__FAILED_TO_RUN=1
+RUN_TESTS_CODE__STOPPED_ON_FAILURE=2
+run-tests()
 {
 	local tests_dir=$1
 	local names=("${@:2}")
@@ -355,8 +359,8 @@ run-tests-in-directory()
 	find-tests "$tests_dir" "${names[@]}"
 	if [[ $? != 0 ]]
 	then
-		RUN_TESTS_IN_DIRECTORY__ERROR="no tests were found in directory \"$tests_dir\""
-		return 1
+		RUN_TESTS__ERROR="no tests were found in directory \"$tests_dir\""
+		return $RUN_TESTS_CODE__FAILED_TO_RUN
 	fi
 
 	local test_files=("${FIND_TESTS__TEST_FILES[@]}")
@@ -369,6 +373,11 @@ run-tests-in-directory()
 		if [[ $? != 0 ]]
 		then
 			(( ++TOTAL_FAILED_TEST_COUNT ))
+			if $STOP_ON_FAILURE
+			then
+				printf '\n'
+				return $RUN_TESTS_CODE__STOPPED_ON_FAILURE
+			fi
 		fi
 
 		printf '\n'
@@ -388,6 +397,7 @@ fi
 
 BASH_TEST__TESTS_DIR="$PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS"; readonly BASH_TEST__TESTS_DIR; export BASH_TEST__TESTS_DIR
 BASH_TEST__SANDBOXES_DIR="${BASH_TEST__TESTS_DIR}sandboxes"; readonly BASH_TEST__SANDBOXES_DIR; export BASH_TEST__SANDBOXES_DIR
+STOP_ON_FAILURE=$PARSE_AND_VALIDATE_ARGUMENTS__STOP_ON_FAILURE
 
 gather-samples "${PARSE_AND_VALIDATE_ARGUMENTS__SUBJECTS[@]}"
 if [[ $? != 0 ]]
@@ -400,11 +410,10 @@ mkdir -p "$BASH_TEST__DIR"
 printf '0\n' > "$BASH_TEST__TEST_CASE_COUNT_FILE"
 printf '0\n' > "$BASH_TEST__FAILED_TEST_CASE_COUNT_FILE"
 printf '0\n' > "$BASH_TEST__EMPTY_TEST_COUNT_FILE"
-
-run-tests-in-directory "$BASH_TEST__TESTS_DIR" "${PARSE_AND_VALIDATE_ARGUMENTS__TESTS[@]}"
-if [[ $? != 0 ]]
+run-tests "$BASH_TEST__TESTS_DIR" "${PARSE_AND_VALIDATE_ARGUMENTS__TESTS[@]}"
+if [[ $? == $RUN_TESTS_CODE__FAILED_TO_RUN ]]
 then
-	printf-error '%s' "$RUN_TESTS_IN_DIRECTORY__ERROR"
+	printf-error '%s' "$RUN_TESTS_ERROR"
 	exit 1
 fi
 
@@ -421,7 +430,13 @@ printf '\n'
 
 if [[ $TOTAL_FAILED_TEST_COUNT > 0 ]]
 then
-	printf "${BASH_TEST__TS_ERROR}Failed: %d tests, %d cases${BASH_TEST__TS_NORMAL}\n" $TOTAL_FAILED_TEST_COUNT $total_failed_test_case_count
+	if $STOP_ON_FAILURE
+	then
+		printf "${BASH_TEST__TS_ERROR}Last test failed: %d cases. Tests stopped.${BASH_TEST__TS_NORMAL}\n" $total_failed_test_case_count
+	else
+		printf "${BASH_TEST__TS_ERROR}Failed: %d tests, %d cases${BASH_TEST__TS_NORMAL}\n" $TOTAL_FAILED_TEST_COUNT $total_failed_test_case_count
+	fi
+
 	exit 1
 else
 	printf-message "${BASH_TEST__TS_SUCCESS}All tests passed${BASH_TEST__SC_END}"
