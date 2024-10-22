@@ -24,11 +24,10 @@ USE-SANDBOX()
 
 	if [[ -z $name ]]
 	then
-		local file_name=$(basename "$BASH_TEST__CURRENT_TEST_FILE")
-		name="${file_name%%.*}"
+		name='sandbox'
 	fi
 
-	local sandbox_dir="$BASH_TEST__SANDBOXES_DIR/$name"
+	local sandbox_dir="$BASH_TEST__CURRENT_DIR/$name"
 	if ! [[ -d $sandbox_dir ]]
 	then
 		bash-test-printf-error 'cannot find sandbox for test "%s"' "$BASH_TEST__CURRENT_TEST_FILE"
@@ -352,6 +351,7 @@ bash-test-clean-temp-files()
 }
 
 BASH_TEST__CURRENT_TEST_FILE=".${1#$PWD}"
+BASH_TEST__CURRENT_DIR="$(dirname $1)"
 
 bash-test-print-running-test "$BASH_TEST__CURRENT_TEST_FILE"
 source "$BASH_TEST__CURRENT_TEST_FILE"
