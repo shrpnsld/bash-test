@@ -10,6 +10,14 @@ SAMPLE()
 	printf "$BASH_TEST__SAMPLES_DIR/$1\n"
 }
 
+PATH-TO()
+{
+	local relative_path=$1
+
+	local dir_path=$(dirname "${BASH_SOURCE[1]}")
+	printf '%s/%s' "$dir_path" "$relative_path"
+}
+
 USE-SANDBOX()
 {
 	local name=$1
