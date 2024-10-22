@@ -350,6 +350,9 @@ bash-test-clean-temp-files()
 		"$BASH_TEST__CONTENTS_EXPECTED_FILE"
 }
 
+#
+# Main
+
 BASH_TEST__CURRENT_TEST_FILE=".${1#$PWD}"
 BASH_TEST__CURRENT_DIR="$(dirname $1)"
 
