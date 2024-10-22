@@ -413,7 +413,7 @@ printf '0\n' > "$BASH_TEST__EMPTY_TEST_COUNT_FILE"
 run-tests "$BASH_TEST__TESTS_DIR" "${PARSE_AND_VALIDATE_ARGUMENTS__TESTS[@]}"
 if [[ $? == $RUN_TESTS_CODE__FAILED_TO_RUN ]]
 then
-	printf-error '%s' "$RUN_TESTS_ERROR"
+	printf-error '%s' "$RUN_TESTS__ERROR"
 	exit 1
 fi
 
