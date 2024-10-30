@@ -325,13 +325,13 @@ find-tests()
 
 	if [[ ${#names[@]} == 0 ]]
 	then
-		FIND_TESTS__TEST_FILES=($(find -E "$tests_dir" -type f -iregex '^.*(\.|_|-)tests?(\.[a-z]+)?$' | sort))
+		FIND_TESTS__TEST_FILES=($(find "$tests_dir" -type f | grep -E '^.*(\.|_|-)tests?(\.[a-z]+)?$' | sort))
 	else
 		FIND_TESTS__TEST_FILES=()
 		local name
 		for name in "${names[@]}"
 		do
-			FIND_TESTS__TEST_FILES+=($(find -E "$tests_dir" -type f -iregex '^.*(\.|_|-)tests?(\.[a-z]+)?$' -ipath "*$name*"))
+			FIND_TESTS__TEST_FILES+=($(find "$tests_dir" -type f -ipath "*$name*" | grep -E '^.*(\.|_|-)tests?(\.[a-z]+)?$' | sort))
 		done
 
 		FIND_TESTS__TEST_FILES=($(printf '%s\n' "${FIND_TESTS__TEST_FILES[@]}" | sort | uniq))
