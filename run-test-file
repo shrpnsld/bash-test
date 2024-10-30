@@ -15,7 +15,21 @@ PATH-TO()
 	local relative_path=$1
 
 	local dir_path=$(dirname "${BASH_SOURCE[1]}")
-	printf '%s/%s' "$dir_path" "$relative_path"
+	local path="$dir_path/$relative_path"
+	if [[ -r $path ]]
+	then
+		printf '%s' "$path"
+		return
+	fi
+
+	path="$BASH_TEST__TESTS_DIR/$relative_path"
+	if [[ -r $path ]]
+	then
+		printf '%s' "$path"
+		return
+	fi
+
+	return 1
 }
 
 USE-SANDBOX()
