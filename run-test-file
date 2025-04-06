@@ -138,6 +138,11 @@ LINK-REQUISITES()
 	done
 }
 
+VARIANT()
+{
+	BASH_TEST__CURRENT_TEST_CASE_VARIANT=$1
+}
+
 CHECK()
 {
 	local expected_result
@@ -163,7 +168,7 @@ CHECK()
 		fi
 
 		BASH_TEST__SOME_TESTS_FAILED=true
-		bash-test-print-requirement-failed-message "$@"
+		bash-test-print-check-failed-message "$@"
 	fi
 }
 
@@ -181,7 +186,7 @@ CHECK-COMMAND()
 		fi
 
 		BASH_TEST__SOME_TESTS_FAILED=true
-		bash-test-print-requirement-failed-message "$@"
+		bash-test-print-check-failed-message "$@"
 		printf '        Command output:\n' >&2
 		local line
 		while read -r line
@@ -223,7 +228,7 @@ CHECK-OUTPUT()
 		fi
 
 		BASH_TEST__SOME_TESTS_FAILED=true
-		bash-test-print-requirement-failed-message "$@"
+		bash-test-print-check-failed-message "$@"
 		printf '        Command output:\n' >&2
 		local line
 		while read -r line
@@ -269,7 +274,7 @@ CHECK-OUTPUT()
 		fi
 
 		BASH_TEST__SOME_TESTS_FAILED=true
-		bash-test-print-requirement-failed-message "$@"
+		bash-test-print-check-failed-message "$@"
 		printf '        %s\n' "${diff_output[@]}" >&2
 		printf "$BASH_TEST__TS_NORMAL" # diff does not reset colors for some reason
 		return
@@ -331,7 +336,7 @@ CHECK-CONTENTS()
 		fi
 
 		BASH_TEST__SOME_TESTS_FAILED=true
-		bash-test-print-requirement-failed-message "$@"
+		bash-test-print-check-failed-message "$@"
 		printf '        %s\n' "${diff_output[@]}" >&2
 		printf "$BASH_TEST__TS_NORMAL" # diff does not reset colors for some reason
 		return

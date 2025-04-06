@@ -93,16 +93,22 @@ bash-test-print-requisite-failed-message()
 }
 export -f bash-test-print-requisite-failed-message
 
-bash-test-print-requirement-failed-message()
+bash-test-print-check-failed-message()
 {
 	local expression=("$@")
 
 	printf "        ${BASH_TEST__TS_ERROR}Test failed${BASH_TEST__TS_NORMAL}\n" >&2
+
+	if [[ -n $BASH_TEST__CURRENT_TEST_CASE_VARIANT ]]
+	then
+		printf "        ${BASH_TEST__TS_ANNOTATION}-- %s --${BASH_TEST__TS_NORMAL}\n" "$BASH_TEST__CURRENT_TEST_CASE_VARIANT" >&2
+	fi
+
 	printf '        Line %d: %s' "${BASH_LINENO[1]}" "${FUNCNAME[1]}"  >&2
 	printf ' "%s"' "${expression[@]}" >&2
 	printf '\n' >&2
 }
-export -f bash-test-print-requirement-failed-message
+export -f bash-test-print-check-failed-message
 
 bash-test-increment-test-case-count()
 {
