@@ -161,6 +161,18 @@ ensure-trailing-slash()
 	printf '%s' "$path"
 }
 
+remove-trailing-slash()
+{
+	local path=$1
+
+	if [[ ${path: -1} == '/' ]]
+	then
+		path="${path%?}"
+	fi
+
+	printf '%s' "$path"
+}
+
 PARSE_AND_VALIDATE_ARGUMENTS__SUBJECTS=()
 PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS=''
 PARSE_AND_VALIDATE_ARGUMENTS__TESTS=()
@@ -331,7 +343,49 @@ find-tests()
 		local name
 		for name in "${names[@]}"
 		do
-			FIND_TESTS__TEST_FILES+=($(find "$tests_dir" -type f -ipath "*$name*" | grep -E '^.*(\.|_|-)tests?(\.[a-z]+)?$' | sort))
+			case "$name" in
+				*/) # 'directory/'
+					local specific_tests_path=$(remove-trailing-slash "$tests_dir/$name")
+					FIND_TESTS__TEST_FILES+=($(find "$specific_tests_path" -type f | grep -E '^.*(\.|_|-)tests?(\.[a-z]+)?$' | sort))
+					;;
+
+				\**) # '*name'
+					FIND_TESTS__TEST_FILES+=($(find "$tests_dir" -type f \
+							-iname "*$name.tests" \
+						-or -iname "*$name.tests.*" \
+						-or -iname "*$name-tests" \
+						-or -iname "*$name-tests.*" \
+						-or -iname "*${name}_tests" \
+						-or -iname "*${name}_tests.*" \
+						| sort))
+					;;
+
+				*\*) # 'name*'
+					FIND_TESTS__TEST_FILES+=($(find "$tests_dir" -type f \
+							-iname "$name*.tests" \
+						-or -iname "$name*.tests.*" \
+						-or -iname "$name*-tests" \
+						-or -iname "$name*-tests.*" \
+						-or -iname "$name*_tests" \
+						-or -iname "$name*_tests.*" \
+						| sort))
+					;;
+
+				\**\*) # '*name*'
+					FIND_TESTS__TEST_FILES+=($(find "$tests_dir" -type f \
+							-iname "*$name*.tests" \
+						-or -iname "*$name*.tests.*" \
+						-or -iname "*$name*-tests" \
+						-or -iname "*$name*-tests.*" \
+						-or -iname "*$name*_tests" \
+						-or -iname "*$name*_tests.*" \
+						| sort))
+					;;
+
+				*) # path in '$test_dir'
+					FIND_TESTS__TEST_FILES+=("$test_dir/$name.tests")
+					;;
+			esac
 		done
 
 		FIND_TESTS__TEST_FILES=($(printf '%s\n' "${FIND_TESTS__TEST_FILES[@]}" | sort | uniq))
