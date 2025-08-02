@@ -134,6 +134,14 @@ bash-test-increment-empty-test-count()
 }
 export -f bash-test-increment-empty-test-count
 
+bash-test-setup() {
+	if declare -f 'SETUP' > /dev/null
+	then
+		SETUP
+	fi
+}
+export -f bash-test-setup
+
 #
 # Private
 

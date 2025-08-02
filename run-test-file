@@ -102,6 +102,8 @@ TEST-CASE()
 		bash-test-printf-error 'failed to set current working directory to "%s"' "$SANDBOX_ROOT"
 		exit 1
 	fi
+
+	bash-test-setup
 }
 
 USE-REQUISITES()
@@ -141,6 +143,8 @@ LINK-REQUISITES()
 VARIANT()
 {
 	BASH_TEST__CURRENT_TEST_CASE_VARIANT=$1
+
+	bash-test-setup
 }
 
 CHECK()
