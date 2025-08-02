@@ -388,8 +388,15 @@ find-tests()
 						| sort))
 					;;
 
-				*) # path in '$test_dir'
-					FIND_TESTS__TEST_FILES+=("$test_dir/$name.tests")
+				*) # full name
+					FIND_TESTS__TEST_FILES+=($(find "$tests_dir" -type f \
+							-iname "$name.tests" \
+						-or -iname "$name.tests.*" \
+						-or -iname "$name-tests" \
+						-or -iname "$name-tests.*" \
+						-or -iname "$name_tests" \
+						-or -iname "$name_tests.*" \
+						| sort))
 					;;
 			esac
 		done
