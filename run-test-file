@@ -22,7 +22,7 @@ PATH-TO()
 		return
 	fi
 
-	path="$BASH_TEST__TESTS_DIR/$relative_path"
+	path="$BASH_TEST__TESTS_DIR$relative_path"
 	if [[ -r $path ]]
 	then
 		printf '%s' "$path"
