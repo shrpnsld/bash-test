@@ -113,6 +113,35 @@ TEST-CASE()
 	bash-test-setup
 }
 
+VARIANT()
+{
+	local name=$1
+
+	bash-test-clean-sandbox-root
+	BASH_TEST__REQUISITES=()
+
+	(( ++BASH_TEST__LOCAL_TEST_CASE_VARIANT_COUNT ))
+
+	if [[ -n $name ]]
+	then
+		BASH_TEST__CURRENT_TEST_CASE_VARIANT=$1
+	else
+		BASH_TEST__CURRENT_TEST_CASE_VARIANT="Set $BASH_TEST__LOCAL_TEST_CASE_VARIANT_COUNT"
+	fi
+
+	bash-test-clean-sandbox-root
+	BASH_TEST__REQUISITES=()
+
+	cd "$SANDBOX_ROOT" &> /dev/null
+	if [[ $? != 0 ]]
+	then
+		bash-test-printf-error 'failed to set current working directory to "%s"' "$SANDBOX_ROOT"
+		exit 1
+	fi
+
+	bash-test-setup
+}
+
 USE-REQUISITES()
 {
 	BASH_TEST__REQUISITES+=("$@")
@@ -145,22 +174,6 @@ LINK-REQUISITES()
 			exit 1
 		fi
 	done
-}
-
-VARIANT()
-{
-	local name=$1
-
-	(( ++BASH_TEST__LOCAL_TEST_CASE_VARIANT_COUNT ))
-
-	if [[ -n $name ]]
-	then
-		BASH_TEST__CURRENT_TEST_CASE_VARIANT=$1
-	else
-		BASH_TEST__CURRENT_TEST_CASE_VARIANT="Set $BASH_TEST__LOCAL_TEST_CASE_VARIANT_COUNT"
-	fi
-
-	bash-test-setup
 }
 
 CHECK()
