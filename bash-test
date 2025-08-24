@@ -351,7 +351,7 @@ find-tests()
 
 	if [[ ${#names[@]} == 0 ]]
 	then
-		FIND_TESTS__TEST_FILES=($(find "$tests_dir" -type f | grep -E '^.*(\.|_|-)tests?(\.[a-z]+)?$' | sort))
+		FIND_TESTS__TEST_FILES=($(find "$tests_dir" -type f | grep -E '^.*(\.|_|-)tests?(\.[a-zA-Z0-9]+)?$' | sort))
 	else
 		FIND_TESTS__TEST_FILES=()
 		local name
@@ -360,7 +360,7 @@ find-tests()
 			case "$name" in
 				*/) # 'directory/'
 					local specific_tests_path=$(remove-trailing-slash "$tests_dir/$name")
-					FIND_TESTS__TEST_FILES+=($(find "$specific_tests_path" -type f | grep -E '^.*(\.|_|-)tests?(\.[a-z]+)?$' | sort))
+					FIND_TESTS__TEST_FILES+=($(find "$specific_tests_path" -type f | grep -E '^.*(\.|_|-)tests?(\.[a-zA-Z0-9]+)?$' | sort))
 					;;
 
 				\**) # '*name'
