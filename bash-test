@@ -163,18 +163,6 @@ printf-error()
 	printf '\n' >&2
 }
 
-ensure-trailing-slash()
-{
-	local path=$1
-
-	if [[ ${path: -1} != '/' ]]
-	then
-		path="$path/"
-	fi
-
-	printf '%s' "$path"
-}
-
 remove-trailing-slash()
 {
 	local path=$1
@@ -188,7 +176,7 @@ remove-trailing-slash()
 }
 
 PARSE_AND_VALIDATE_ARGUMENTS__SUBJECTS=()
-PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS=''
+PARSE_AND_VALIDATE_ARGUMENTS__TESTS_DIR=''
 PARSE_AND_VALIDATE_ARGUMENTS__TESTS=()
 PARSE_AND_VALIDATE_ARGUMENTS__STOP_ON_FAILURE=false
 PARSE_AND_VALIDATE_ARGUMENTS__ERROR=''
@@ -208,8 +196,8 @@ parse-and-validate-arguments()
 
 			-t|--tests)
 				(( ++index ))
-				local directory=$(ensure-trailing-slash "${arguments[$index]}")
-				PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS="$PWD/$directory"
+				local directory=$(remove-trailing-slash "${arguments[$index]}")
+				PARSE_AND_VALIDATE_ARGUMENTS__TESTS_DIR="$PWD/$directory"
 				;;
 
 			-f|--stop-on-failure)
@@ -236,7 +224,7 @@ parse-and-validate-arguments()
 		esac
 	done
 
-	if [[ -z $PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS ]]
+	if [[ -z $PARSE_AND_VALIDATE_ARGUMENTS__TESTS_DIR ]]
 	then
 		PARSE_AND_VALIDATE_ARGUMENTS__ERROR='no directory with tests was specified'
 		return 1
@@ -346,7 +334,7 @@ gather-samples()
 FIND_TESTS__TEST_FILES=()
 find-tests()
 {
-	local test_dir=$1
+	local tests_dir=$1
 	local names=("${@:2}")
 
 	if [[ ${#names[@]} == 0 ]]
@@ -419,26 +407,11 @@ TOTAL_TEST_COUNT=0
 TOTAL_FAILED_TEST_COUNT=0
 
 RUN_TESTS__ERROR=''
-RUN_TESTS_CODE__FAILED_TO_RUN=1
 RUN_TESTS_CODE__STOPPED_ON_FAILURE=2
 run-tests()
 {
-	local tests_dir=$1
-	local names=("${@:2}")
+	local test_files=("$@")
 
-	if [[ ${tests_dir: -1} == '/' ]]
-	then
-		tests_dir="${tests_dir:0:${#tests_dir}-1}"
-	fi
-
-	find-tests "$tests_dir" "${names[@]}"
-	if [[ $? != 0 ]]
-	then
-		RUN_TESTS__ERROR="no tests were found in directory \"$tests_dir\""
-		return $RUN_TESTS_CODE__FAILED_TO_RUN
-	fi
-
-	local test_files=("${FIND_TESTS__TEST_FILES[@]}")
 	(( TOTAL_TEST_COUNT += ${#test_files[@]} ))
 
 	local test_file
@@ -470,7 +443,7 @@ then
 	exit 1
 fi
 
-BASH_TEST__TESTS_DIR="$PARSE_AND_VALIDATE_ARGUMENTS__DIR_WITH_TESTS"; readonly BASH_TEST__TESTS_DIR; export BASH_TEST__TESTS_DIR
+BASH_TEST__TESTS_DIR="$PARSE_AND_VALIDATE_ARGUMENTS__TESTS_DIR"; readonly BASH_TEST__TESTS_DIR; export BASH_TEST__TESTS_DIR
 STOP_ON_FAILURE=$PARSE_AND_VALIDATE_ARGUMENTS__STOP_ON_FAILURE
 
 gather-samples "${PARSE_AND_VALIDATE_ARGUMENTS__SUBJECTS[@]}"
@@ -484,12 +457,15 @@ mkdir -p "$BASH_TEST__DIR"
 printf '0\n' > "$BASH_TEST__TEST_CASE_COUNT_FILE"
 printf '0\n' > "$BASH_TEST__FAILED_TEST_CASE_COUNT_FILE"
 printf '0\n' > "$BASH_TEST__EMPTY_TEST_COUNT_FILE"
-run-tests "$BASH_TEST__TESTS_DIR" "${PARSE_AND_VALIDATE_ARGUMENTS__TESTS[@]}"
-if [[ $? == $RUN_TESTS_CODE__FAILED_TO_RUN ]]
+
+find-tests "$BASH_TEST__TESTS_DIR" "${PARSE_AND_VALIDATE_ARGUMENTS__TESTS[@]}"
+if [[ $? != 0 ]]
 then
-	printf-error '%s' "$RUN_TESTS__ERROR"
-	exit 1
+	printf-error 'no tests were found in directory "%s"' "$BASH_TEST__TESTS_DIR"
+	return 1
 fi
+
+run-tests "${FIND_TESTS__TEST_FILES[@]}"
 
 total_test_case_count=$(cat "$BASH_TEST__TEST_CASE_COUNT_FILE")
 total_failed_test_case_count=$(cat "$BASH_TEST__FAILED_TEST_CASE_COUNT_FILE")
