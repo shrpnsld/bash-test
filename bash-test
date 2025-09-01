@@ -531,6 +531,6 @@ then
 
 	exit 1
 else
-	printf-message "${BASH_TEST__TS_SUCCESS}All tests passed${BASH_TEST__SC_END}"
+	printf-message "${BASH_TEST__TS_SUCCESS}All tests passed${BASH_TEST__TS_NORMAL}"
 fi
 
