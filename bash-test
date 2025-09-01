@@ -45,6 +45,7 @@ ${BASH_TEST__TS_BOLD}OPTIONS${BASH_TEST__TS_NORMAL}
   -s, --sample <script>    Create sample of a script.
   -t, --tests <directory>  Directory with tests.
   -f, --stop-on-failure    Stop on failure.
+  -m, --time               Print execution time.
   -v, --verbose            Verbose mode.
   -h, --help               Show this message.
   -- <test>...             Tests to run.
@@ -179,6 +180,7 @@ PARSE_AND_VALIDATE_ARGUMENTS__SUBJECTS=()
 PARSE_AND_VALIDATE_ARGUMENTS__TESTS_DIR=''
 PARSE_AND_VALIDATE_ARGUMENTS__TESTS=()
 PARSE_AND_VALIDATE_ARGUMENTS__STOP_ON_FAILURE=false
+PARSE_AND_VALIDATE_ARGUMENTS__PRINT_EXECUTION_TIME=false
 PARSE_AND_VALIDATE_ARGUMENTS__ERROR=''
 parse-and-validate-arguments()
 {
@@ -202,6 +204,10 @@ parse-and-validate-arguments()
 
 			-f|--stop-on-failure)
 				PARSE_AND_VALIDATE_ARGUMENTS__STOP_ON_FAILURE=true
+				;;
+
+			-m|--time)
+				PARSE_AND_VALIDATE_ARGUMENTS__PRINT_EXECUTION_TIME=true
 				;;
 
 			-v|--verbose)
@@ -432,6 +438,35 @@ run-tests()
 	done
 }
 
+print-execution-time()
+{
+	local start_time=$1
+	local end_time=$2
+
+	total_seconds=$(( end_time - start_time ))
+	hours=$(( total_seconds / 3600 ))
+	minutes=$(( (total_seconds % 3600) / 60 ))
+	seconds=$(( (total_seconds % 3600 % 60) ))
+
+	printf 'Execution time:'
+	if [ "$hours" != 0 ]
+	then
+		printf ' %dh' $hours
+	fi
+
+	if [ "$minutes" != 0 ]
+	then
+		printf ' %dm' $minutes
+	fi
+
+	if [ "$seconds" != 0 ]
+	then
+		printf ' %ds' $seconds
+	fi
+
+	printf '\n'
+}
+
 #
 # Main
 
@@ -465,7 +500,9 @@ then
 	return 1
 fi
 
+start_time=$SECONDS
 run-tests "${FIND_TESTS__TEST_FILES[@]}"
+end_time=$SECONDS
 
 total_test_case_count=$(cat "$BASH_TEST__TEST_CASE_COUNT_FILE")
 total_failed_test_case_count=$(cat "$BASH_TEST__FAILED_TEST_CASE_COUNT_FILE")
@@ -477,6 +514,11 @@ then
 	printf ", ${BASH_TEST__TS_WARNING}%d empty tests${BASH_TEST__TS_NORMAL}" $total_empty_test_count
 fi
 printf '\n'
+
+if $PARSE_AND_VALIDATE_ARGUMENTS__PRINT_EXECUTION_TIME
+then
+	print-execution-time $start_time $end_time
+fi
 
 if [[ $TOTAL_FAILED_TEST_COUNT > 0 ]]
 then
