@@ -449,19 +449,24 @@ print-execution-time()
 	seconds=$(( (total_seconds % 3600 % 60) ))
 
 	printf 'Execution time:'
-	if [ "$hours" != 0 ]
+	if [[ $total_seconds != 0 ]]
 	then
-		printf ' %dh' $hours
-	fi
+		if [ "$hours" != 0 ]
+		then
+			printf ' %dh' $hours
+		fi
 
-	if [ "$minutes" != 0 ]
-	then
-		printf ' %dm' $minutes
-	fi
+		if [ "$minutes" != 0 ]
+		then
+			printf ' %dm' $minutes
+		fi
 
-	if [ "$seconds" != 0 ]
-	then
-		printf ' %ds' $seconds
+		if [ "$seconds" != 0 ]
+		then
+			printf ' %ds' $seconds
+		fi
+	else
+		printf ' less than a second'
 	fi
 
 	printf '\n'
@@ -497,7 +502,7 @@ find-tests "$BASH_TEST__TESTS_DIR" "${PARSE_AND_VALIDATE_ARGUMENTS__TESTS[@]}"
 if [[ $? != 0 ]]
 then
 	printf-error 'no tests were found in directory "%s"' "$BASH_TEST__TESTS_DIR"
-	return 1
+	exit 1
 fi
 
 start_time=$SECONDS
